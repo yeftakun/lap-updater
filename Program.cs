@@ -1,0 +1,593 @@
+using System.Diagnostics;
+using System.Drawing;
+using System.Net.Http;
+using System.Text.Json;
+using System.Text.Json.Serialization;
+using System.Windows.Forms;
+
+namespace LapUpdater;
+
+internal static class Program
+{
+    [STAThread]
+    private static void Main()
+    {
+        ApplicationConfiguration.Initialize();
+        Application.Run(new MainForm());
+    }
+}
+
+internal sealed class MainForm : Form
+{
+    private static readonly HttpClient HttpClient = new() { Timeout = TimeSpan.FromSeconds(3) };
+
+    private readonly TextBox _sourcePathBox;
+    private readonly TextBox _repoRootBox;
+    private readonly Button _checkChangesButton;
+    private readonly Button _updateButton;
+    private readonly Button _clearConsoleButton;
+    private readonly RichTextBox _outputBox;
+    private readonly Label _statusLabel;
+
+    private AppSettings _settings;
+    private bool _isBusy;
+
+    public MainForm()
+    {
+        Text = "Lap Time Updater";
+        Width = 820;
+        Height = 520;
+        StartPosition = FormStartPosition.CenterScreen;
+        _settings = SettingsStore.Load();
+
+        var instructions = new Label
+        {
+            AutoSize = true,
+            Text = "This app is only for quickly updating your lap times. Assume you've completed the initial setup.",
+            Padding = new Padding(0, 0, 0, 8)
+        };
+
+        _sourcePathBox = new TextBox
+        {
+            ReadOnly = true,
+            Width = 520
+        };
+
+        _repoRootBox = new TextBox
+        {
+            ReadOnly = true,
+            Width = 520
+        };
+
+        var browseFileButton = new Button
+        {
+            Text = "Browse file",
+            AutoSize = true
+        };
+        browseFileButton.Click += OnBrowseFile;
+
+        var browseFolderButton = new Button
+        {
+            Text = "Browse folder",
+            AutoSize = true
+        };
+        browseFolderButton.Click += OnBrowseFolder;
+
+        _checkChangesButton = new Button
+        {
+            Text = "Check changes",
+            AutoSize = true,
+            Enabled = false
+        };
+        _checkChangesButton.Click += OnCheckChanges;
+
+        _updateButton = new Button
+        {
+            Text = "Update Laptime",
+            AutoSize = true,
+            Enabled = false
+        };
+        _updateButton.Click += OnUpdate;
+
+        _clearConsoleButton = new Button
+        {
+            Text = "Clear console",
+            AutoSize = true
+        };
+        _clearConsoleButton.Click += OnClearConsole;
+
+        _outputBox = new RichTextBox
+        {
+            Dock = DockStyle.Fill,
+            ReadOnly = true,
+            DetectUrls = false,
+            Font = new System.Drawing.Font("Consolas", 10)
+        };
+
+        _statusLabel = new Label
+        {
+            AutoSize = true,
+            Text = "No changes",
+            ForeColor = SystemColors.ControlText,
+            Padding = new Padding(8, 6, 0, 0)
+        };
+
+        var mainLayout = new TableLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            RowCount = 5,
+            ColumnCount = 1,
+            Padding = new Padding(12)
+        };
+        mainLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        mainLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        mainLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        mainLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        mainLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+
+        mainLayout.Controls.Add(instructions, 0, 0);
+        mainLayout.Controls.Add(CreatePathRow("Source personalbest.ini", _sourcePathBox, browseFileButton), 0, 1);
+        mainLayout.Controls.Add(CreatePathRow("Website repo root", _repoRootBox, browseFolderButton), 0, 2);
+        mainLayout.Controls.Add(CreateActionsRow(), 0, 3);
+        mainLayout.Controls.Add(CreateOutputRow(), 0, 4);
+
+        Controls.Add(mainLayout);
+
+        LoadSettingsIntoUi();
+        UpdateButtonStates();
+        ApplyStoredStatus();
+    }
+
+    private Control CreatePathRow(string label, Control textBox, Control button)
+    {
+        var row = new FlowLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            AutoSize = true,
+            FlowDirection = FlowDirection.LeftToRight,
+            WrapContents = false
+        };
+
+        row.Controls.Add(new Label { Text = label, AutoSize = true, Width = 150 });
+        row.Controls.Add(textBox);
+        row.Controls.Add(button);
+        return row;
+    }
+
+    private Control CreateActionsRow()
+    {
+        var row = new FlowLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            AutoSize = true,
+            FlowDirection = FlowDirection.LeftToRight,
+            WrapContents = false,
+            Padding = new Padding(0, 8, 0, 8)
+        };
+
+        row.Controls.Add(_checkChangesButton);
+        row.Controls.Add(_updateButton);
+        row.Controls.Add(_clearConsoleButton);
+        row.Controls.Add(_statusLabel);
+        return row;
+    }
+
+    private Control CreateOutputRow()
+    {
+        var group = new GroupBox
+        {
+            Text = "Console output",
+            Dock = DockStyle.Fill
+        };
+        group.Controls.Add(_outputBox);
+        return group;
+    }
+
+    private void LoadSettingsIntoUi()
+    {
+        if (!string.IsNullOrWhiteSpace(_settings.SourceIniPath))
+        {
+            _sourcePathBox.Text = _settings.SourceIniPath;
+        }
+
+        if (!string.IsNullOrWhiteSpace(_settings.RepoRootPath))
+        {
+            _repoRootBox.Text = _settings.RepoRootPath;
+        }
+    }
+
+    private void OnBrowseFile(object? sender, EventArgs e)
+    {
+        using var dialog = new OpenFileDialog
+        {
+            Title = "Select personalbest.ini",
+            Filter = "INI files (*.ini)|*.ini|All files (*.*)|*.*",
+            FileName = "personalbest.ini"
+        };
+
+        if (dialog.ShowDialog(this) == DialogResult.OK)
+        {
+            _settings.SourceIniPath = dialog.FileName;
+            _sourcePathBox.Text = dialog.FileName;
+            SettingsStore.Save(_settings);
+            UpdateButtonStates();
+        }
+    }
+
+    private void OnBrowseFolder(object? sender, EventArgs e)
+    {
+        using var dialog = new FolderBrowserDialog
+        {
+            Description = "Select your website repository root",
+            UseDescriptionForTitle = true,
+            ShowNewFolderButton = false
+        };
+
+        if (dialog.ShowDialog(this) == DialogResult.OK)
+        {
+            _settings.RepoRootPath = dialog.SelectedPath;
+            _repoRootBox.Text = dialog.SelectedPath;
+            SettingsStore.Save(_settings);
+            UpdateButtonStates();
+        }
+    }
+
+    private async void OnCheckChanges(object? sender, EventArgs e)
+    {
+        if (!EnsurePaths())
+        {
+            return;
+        }
+
+        if (!await EnsureInternetAsync())
+        {
+            return;
+        }
+
+        if (!CopySourceIniToRepoData())
+        {
+            return;
+        }
+
+        SetBusy(true);
+        _updateButton.Enabled = false;
+        AppendOutput("Running git fetch (compare with remote)...");
+        var fetchResult = await RunCommandAsync("git", "fetch --quiet");
+        AppendCommandResult(fetchResult);
+
+        AppendOutput("Running git status...");
+        var statusResult = await RunCommandAsync("git", "status -sb");
+        AppendCommandResult(statusResult);
+
+        var statusLines = statusResult.Output
+            .Split(new[] { "\r\n", "\n" }, StringSplitOptions.RemoveEmptyEntries);
+
+        var hasAheadCommits = statusLines.FirstOrDefault()?.Contains("ahead", StringComparison.OrdinalIgnoreCase) == true;
+        var hasUncommitted = statusLines.Length > 1; // any entry beyond the branch summary means local changes
+
+        var hasChanges = hasUncommitted || hasAheadCommits;
+
+        _updateButton.Enabled = hasChanges;
+        if (!hasChanges)
+        {
+            AppendOutput("No changes detected (local + remote). ");
+            SetStatus("No changes", SystemColors.ControlText);
+        }
+        else if (hasUncommitted)
+        {
+            SetStatus("Ditemukan perubahan", Color.Green);
+        }
+        else if (hasAheadCommits)
+        {
+            SetStatus("Commits pending push", Color.Green);
+            AppendOutput("Local branch is ahead of remote: push required.");
+        }
+
+        SetBusy(false);
+    }
+
+    private async void OnUpdate(object? sender, EventArgs e)
+    {
+        if (!EnsurePaths())
+        {
+            return;
+        }
+
+        if (!await EnsureInternetAsync())
+        {
+            return;
+        }
+
+        SetBusy(true);
+        _updateButton.Enabled = false;
+
+        AppendOutput("Running git add .");
+        var addResult = await RunCommandAsync("git", "add .");
+        AppendCommandResult(addResult);
+
+        AppendOutput("Running git commit...");
+        var commitResult = await RunCommandAsync("git", "commit -m \"Updated: Laptime\"");
+        AppendCommandResult(commitResult);
+
+        var commitWasNoop = commitResult.ExitCode != 0
+                            && (commitResult.Output.Contains("nothing to commit", StringComparison.OrdinalIgnoreCase)
+                                || commitResult.Error.Contains("nothing to commit", StringComparison.OrdinalIgnoreCase));
+        var commitSucceeded = commitResult.ExitCode == 0 || commitWasNoop;
+
+        AppendOutput("Running git push...");
+        var pushResult = await RunCommandAsync("git", "push");
+        AppendCommandResult(pushResult);
+
+        var success = addResult.ExitCode == 0 && commitSucceeded && pushResult.ExitCode == 0;
+        if (success)
+        {
+            SetStatus("Perubahan terkirim", Color.Green);
+            _settings.LastPushStatus = PushStatus.Success;
+            _updateButton.Enabled = false;
+        }
+        else
+        {
+            SetStatus("Terdapat kesalahan!", Color.DarkOrange);
+            _settings.LastPushStatus = PushStatus.Failure;
+            _updateButton.Enabled = true; // Allow retry (e.g., push failed due to connectivity)
+        }
+
+        SettingsStore.Save(_settings);
+
+        SetBusy(false);
+    }
+
+    private bool EnsurePaths()
+    {
+        if (string.IsNullOrWhiteSpace(_settings.SourceIniPath) || !File.Exists(_settings.SourceIniPath))
+        {
+            MessageBox.Show(this, "Select a valid personalbest.ini first.", "Missing file", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            return false;
+        }
+
+        if (string.IsNullOrWhiteSpace(_settings.RepoRootPath) || !Directory.Exists(_settings.RepoRootPath))
+        {
+            MessageBox.Show(this, "Select a valid repository root folder.", "Missing folder", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            return false;
+        }
+
+        return true;
+    }
+
+    private bool CopySourceIniToRepoData()
+    {
+        try
+        {
+            var targetDir = Path.Combine(_settings.RepoRootPath!, "data");
+            Directory.CreateDirectory(targetDir);
+            var targetPath = Path.Combine(targetDir, "personalbest.ini");
+            File.Copy(_settings.SourceIniPath!, targetPath, overwrite: true);
+            AppendOutput($"Copied personalbest.ini to {targetPath}");
+            return true;
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(this, $"Failed to copy personalbest.ini: {ex.Message}", "Copy failed", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            return false;
+        }
+    }
+
+    private void SetBusy(bool isBusy)
+    {
+        _isBusy = isBusy;
+        _checkChangesButton.Enabled = !isBusy && PathsReady();
+        _updateButton.Enabled = !isBusy && _updateButton.Enabled;
+    }
+
+    private bool PathsReady()
+    {
+        return !string.IsNullOrWhiteSpace(_settings.SourceIniPath) && File.Exists(_settings.SourceIniPath)
+               && !string.IsNullOrWhiteSpace(_settings.RepoRootPath) && Directory.Exists(_settings.RepoRootPath);
+    }
+
+    private void UpdateButtonStates()
+    {
+        _checkChangesButton.Enabled = PathsReady() && !_isBusy;
+        if (!_checkChangesButton.Enabled)
+        {
+            _updateButton.Enabled = false;
+        }
+    }
+
+    private async Task<CommandResult> RunCommandAsync(string fileName, string arguments)
+    {
+        var outputLines = new List<string>();
+        var errorLines = new List<string>();
+
+        var startInfo = new ProcessStartInfo(fileName, arguments)
+        {
+            WorkingDirectory = _settings.RepoRootPath ?? string.Empty,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false,
+            CreateNoWindow = true
+        };
+
+        using var process = new Process { StartInfo = startInfo, EnableRaisingEvents = true };
+
+        process.OutputDataReceived += (_, args) =>
+        {
+            if (args.Data != null)
+            {
+                lock (outputLines)
+                {
+                    outputLines.Add(args.Data);
+                }
+            }
+        };
+
+        process.ErrorDataReceived += (_, args) =>
+        {
+            if (args.Data != null)
+            {
+                lock (errorLines)
+                {
+                    errorLines.Add(args.Data);
+                }
+            }
+        };
+
+        process.Start();
+        process.BeginOutputReadLine();
+        process.BeginErrorReadLine();
+
+        await Task.Run(() => process.WaitForExit());
+
+        return new CommandResult(
+            string.Join(Environment.NewLine, outputLines),
+            string.Join(Environment.NewLine, errorLines),
+            process.ExitCode);
+    }
+
+    private void AppendCommandResult(CommandResult result)
+    {
+        if (!string.IsNullOrWhiteSpace(result.Output))
+        {
+            AppendOutput(result.Output);
+        }
+
+        if (!string.IsNullOrWhiteSpace(result.Error))
+        {
+            AppendOutput(result.Error);
+        }
+
+        AppendOutput($"Exit code: {result.ExitCode}");
+        AppendOutput(string.Empty);
+    }
+
+    private void AppendOutput(string message)
+    {
+        if (InvokeRequired)
+        {
+            BeginInvoke(new Action<string>(AppendOutput), message);
+            return;
+        }
+
+        _outputBox.AppendText(message + Environment.NewLine);
+        _outputBox.ScrollToCaret();
+    }
+
+    private void SetStatus(string text, Color color)
+    {
+        if (InvokeRequired)
+        {
+            BeginInvoke(new Action<string, Color>(SetStatus), text, color);
+            return;
+        }
+
+        _statusLabel.Text = text;
+        _statusLabel.ForeColor = color;
+    }
+
+    private void ApplyStoredStatus()
+    {
+        switch (_settings.LastPushStatus)
+        {
+            case PushStatus.Success:
+                SetStatus("Perubahan terkirim", Color.Green);
+                break;
+            case PushStatus.Failure:
+                SetStatus("Terdapat kesalahan!", Color.DarkOrange);
+                break;
+            default:
+                SetStatus("No changes", SystemColors.ControlText);
+                break;
+        }
+    }
+
+    private void OnClearConsole(object? sender, EventArgs e)
+    {
+        _outputBox.Clear();
+    }
+
+    private async Task<bool> EnsureInternetAsync()
+    {
+        try
+        {
+            using var request = new HttpRequestMessage(HttpMethod.Head, "https://www.google.com/generate_204");
+            var response = await HttpClient.SendAsync(request);
+            var ok = response.IsSuccessStatusCode;
+            if (!ok)
+            {
+                throw new HttpRequestException($"Status code {(int)response.StatusCode}");
+            }
+
+            return true;
+        }
+        catch
+        {
+            MessageBox.Show(this, "No Internet Connection", "Network", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            return false;
+        }
+    }
+}
+
+internal sealed record AppSettings
+{
+    [JsonPropertyName("sourceIniPath")]
+    public string? SourceIniPath { get; set; }
+
+    [JsonPropertyName("repoRootPath")]
+    public string? RepoRootPath { get; set; }
+
+    [JsonPropertyName("lastPushStatus")]
+    public PushStatus LastPushStatus { get; set; }
+}
+
+internal enum PushStatus
+{
+    None,
+    Success,
+    Failure
+}
+
+internal static class SettingsStore
+{
+    private const string SettingsFileName = "settings.json";
+
+    public static AppSettings Load()
+    {
+        try
+        {
+            var path = GetSettingsPath();
+            if (!File.Exists(path))
+            {
+                return new AppSettings();
+            }
+
+            var json = File.ReadAllText(path);
+            var settings = JsonSerializer.Deserialize<AppSettings>(json);
+            return settings ?? new AppSettings();
+        }
+        catch
+        {
+            return new AppSettings();
+        }
+    }
+
+    public static void Save(AppSettings settings)
+    {
+        try
+        {
+            var path = GetSettingsPath();
+            var json = JsonSerializer.Serialize(settings, new JsonSerializerOptions { WriteIndented = true });
+            File.WriteAllText(path, json);
+        }
+        catch
+        {
+            // Swallow errors to avoid crashing UI when saving settings.
+        }
+    }
+
+    private static string GetSettingsPath()
+    {
+        return Path.Combine(AppContext.BaseDirectory, SettingsFileName);
+    }
+}
+
+internal sealed record CommandResult(string Output, string Error, int ExitCode);
