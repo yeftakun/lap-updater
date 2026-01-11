@@ -10,12 +10,10 @@ AppName={#MyAppName}
 AppVersion={#MyAppVersion}
 AppPublisher={#MyAppPublisher}
 
-WizardImageFile=app/shiroko-vert.bmp
-WizardSmallImageFile=app/shiroko-miaw.bmp
-
+WizardImageFile=app\shiroko-vert.bmp
+WizardSmallImageFile=app\shiroko-miaw.bmp
 DisableWelcomePage=no
 DisableFinishedPage=no
-
 
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
@@ -28,7 +26,7 @@ Compression=lzma2
 SolidCompression=yes
 WizardStyle=classic
 
-; Run setup as admin (UAC prompt)
+; No admin needed (your app writes config to %APPDATA%)
 PrivilegesRequired=admin
 
 ; Installer / Add-Remove Programs icon
@@ -42,11 +40,10 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 Name: "desktopicon"; Description: "Create a desktop shortcut"; Flags: unchecked
 
 [Files]
-; Bundle everything from the "app" folder (exe, dll, deps/runtime json, icon, etc.)
+; Install everything from the "app" folder
 Source: "app\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
-; Use icon.ico for shortcuts (works even if exe itself has no embedded icon yet)
 Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; IconFilename: "{app}\{#MyIconFile}"
 Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: desktopicon; IconFilename: "{app}\{#MyIconFile}"
 
@@ -120,4 +117,3 @@ begin
     end;
   end;
 end;
-
