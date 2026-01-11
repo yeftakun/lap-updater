@@ -25,6 +25,7 @@ internal sealed class MainForm : Form
     private readonly TextBox _repoRootBox;
     private readonly Button _checkChangesButton;
     private readonly Button _updateButton;
+    private readonly Button _openConfigButton;
     private readonly Button _clearConsoleButton;
     private readonly RichTextBox _outputBox;
     private readonly Label _statusLabel;
@@ -88,6 +89,14 @@ internal sealed class MainForm : Form
             Enabled = false
         };
         _updateButton.Click += OnUpdate;
+
+        _openConfigButton = new Button
+        {
+            Text = "config.json",
+            AutoSize = true,
+            Enabled = false
+        };
+        _openConfigButton.Click += OnOpenConfig;
 
         _clearConsoleButton = new Button
         {
@@ -167,6 +176,7 @@ internal sealed class MainForm : Form
 
         row.Controls.Add(_checkChangesButton);
         row.Controls.Add(_updateButton);
+        row.Controls.Add(_openConfigButton);
         row.Controls.Add(_clearConsoleButton);
         row.Controls.Add(_statusLabel);
         return row;
@@ -275,7 +285,7 @@ internal sealed class MainForm : Form
         }
         else if (hasUncommitted)
         {
-            SetStatus("Ditemukan perubahan", Color.Green);
+            SetStatus("Changes found", Color.Green);
         }
         else if (hasAheadCommits)
         {
@@ -321,13 +331,13 @@ internal sealed class MainForm : Form
         var success = addResult.ExitCode == 0 && commitSucceeded && pushResult.ExitCode == 0;
         if (success)
         {
-            SetStatus("Perubahan terkirim", Color.Green);
+            SetStatus("Changes sent", Color.Green);
             _settings.LastPushStatus = PushStatus.Success;
             _updateButton.Enabled = false;
         }
         else
         {
-            SetStatus("Terdapat kesalahan!", Color.DarkOrange);
+            SetStatus("An error occurred!", Color.DarkOrange);
             _settings.LastPushStatus = PushStatus.Failure;
             _updateButton.Enabled = true; // Allow retry (e.g., push failed due to connectivity)
         }
@@ -377,6 +387,7 @@ internal sealed class MainForm : Form
         _isBusy = isBusy;
         _checkChangesButton.Enabled = !isBusy && PathsReady();
         _updateButton.Enabled = !isBusy && _updateButton.Enabled;
+        _openConfigButton.Enabled = !isBusy && CanOpenConfig();
     }
 
     private bool PathsReady()
@@ -391,6 +402,37 @@ internal sealed class MainForm : Form
         if (!_checkChangesButton.Enabled)
         {
             _updateButton.Enabled = false;
+        }
+
+        _openConfigButton.Enabled = !_isBusy && CanOpenConfig();
+    }
+
+    private bool CanOpenConfig()
+    {
+        // As requested: only enabled if config exists AND user already set both paths.
+        return PathsReady() && File.Exists(SettingsStore.GetConfigPath());
+    }
+
+    private void OnOpenConfig(object? sender, EventArgs e)
+    {
+        try
+        {
+            var configPath = SettingsStore.GetConfigPath();
+            if (!File.Exists(configPath))
+            {
+                MessageBox.Show(this, "config.json not found yet.", "Config", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                UpdateButtonStates();
+                return;
+            }
+
+            Process.Start(new ProcessStartInfo("explorer.exe", $"/select,\"{configPath}\"")
+            {
+                UseShellExecute = true
+            });
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(this, $"Failed to open config location: {ex.Message}", "Config", MessageBoxButtons.OK, MessageBoxIcon.Error);
         }
     }
 
@@ -489,13 +531,13 @@ internal sealed class MainForm : Form
         switch (_settings.LastPushStatus)
         {
             case PushStatus.Success:
-                SetStatus("Perubahan terkirim", Color.Green);
+                SetStatus("Changes sent", Color.Green);
                 break;
             case PushStatus.Failure:
                 SetStatus("Terdapat kesalahan!", Color.DarkOrange);
                 break;
             default:
-                SetStatus("No changes", SystemColors.ControlText);
+                SetStatus("An error occurred!", SystemColors.ControlText);
                 break;
         }
     }
@@ -548,7 +590,12 @@ internal enum PushStatus
 
 internal static class SettingsStore
 {
-    private const string SettingsFileName = "settings.json";
+    private const string SettingsFileName = "config.json";
+
+    public static string GetConfigPath()
+    {
+        return GetSettingsPath();
+    }
 
     public static AppSettings Load()
     {
@@ -557,7 +604,18 @@ internal static class SettingsStore
             var path = GetSettingsPath();
             if (!File.Exists(path))
             {
-                return new AppSettings();
+                var legacyPath = GetLegacySettingsPath();
+                if (!File.Exists(legacyPath))
+                {
+                    return new AppSettings();
+                }
+
+                var legacyJson = File.ReadAllText(legacyPath);
+                var legacySettings = JsonSerializer.Deserialize<AppSettings>(legacyJson) ?? new AppSettings();
+
+                // Best-effort migration: write to the new location.
+                Save(legacySettings);
+                return legacySettings;
             }
 
             var json = File.ReadAllText(path);
@@ -575,6 +633,7 @@ internal static class SettingsStore
         try
         {
             var path = GetSettingsPath();
+            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
             var json = JsonSerializer.Serialize(settings, new JsonSerializerOptions { WriteIndented = true });
             File.WriteAllText(path, json);
         }
@@ -586,7 +645,14 @@ internal static class SettingsStore
 
     private static string GetSettingsPath()
     {
-        return Path.Combine(AppContext.BaseDirectory, SettingsFileName);
+        var appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
+        return Path.Combine(appData, "LapUpdater", SettingsFileName);
+    }
+
+    private static string GetLegacySettingsPath()
+    {
+        // Previous versions stored settings alongside the executable.
+        return Path.Combine(AppContext.BaseDirectory, "settings.json");
     }
 }
 
