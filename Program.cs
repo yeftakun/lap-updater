@@ -47,13 +47,13 @@ internal sealed class MainForm : Form
     private const int SideImageWidthMin = 120;
     private const int SideImageWidthMax = 520;
     private const int DefaultSideImageWidth = 300;
+    private const int RightContentMinWidth = 860;
     private const int WindowWidthMargin = 40;
 
     public MainForm()
     {
         Text = "Lap Time Updater";
-        var baseWindowWidth = 1020;
-        Width = baseWindowWidth;
+        Width = 1020;
         Height = 520;
         StartPosition = FormStartPosition.CenterScreen;
         _settings = SettingsStore.Load();
@@ -215,7 +215,6 @@ internal sealed class MainForm : Form
         };
 
         var initialWidth = ClampSideImageWidth(_settings.SideImageWidth ?? DefaultSideImageWidth);
-        Width = ClampWindowWidthToScreen(baseWindowWidth + (initialWidth - DefaultSideImageWidth));
         _sideImageWidthUpDown.Value = initialWidth;
 
         _sideImageColumnStyle = new ColumnStyle(SizeType.Absolute, initialWidth);
@@ -233,6 +232,8 @@ internal sealed class MainForm : Form
         LoadSideImageOptions();
         UpdateButtonStates();
         ApplyStoredStatus();
+
+        EnsureWindowFitsContent(initialWidth, mainLayout);
     }
 
     private Control CreateSideImageControls()
@@ -254,6 +255,18 @@ internal sealed class MainForm : Form
     private static int ClampSideImageWidth(int value)
     {
         return Math.Clamp(value, SideImageWidthMin, SideImageWidthMax);
+    }
+
+    private void EnsureWindowFitsContent(int sideWidth, Control rightContent)
+    {
+        // TableLayoutPanel with Dock=Fill doesn't always report a useful PreferredSize,
+        // so we combine measurement with a safe minimum.
+        var measuredRight = rightContent.GetPreferredSize(new Size(int.MaxValue, int.MaxValue)).Width;
+        var rightWidth = Math.Max(RightContentMinWidth, measuredRight);
+
+        var desiredClientWidth = sideWidth + rightWidth;
+        var desiredWindowWidth = SizeFromClientSize(new Size(desiredClientWidth, ClientSize.Height)).Width;
+        Width = ClampWindowWidthToScreen(Math.Max(Width, desiredWindowWidth));
     }
 
     private int ClampWindowWidthToScreen(int requestedWidth)
