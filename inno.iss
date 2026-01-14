@@ -24,7 +24,7 @@ ArchitecturesInstallIn64BitMode=x64compatible
 DefaultDirName={autopf}\{#MyAppName}
 DefaultGroupName={#MyAppName}
 
-OutputBaseFilename={#MyAppName}-Setup
+OutputBaseFilename=Setup
 Compression=lzma2
 SolidCompression=yes
 WizardStyle=classic
