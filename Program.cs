@@ -23,9 +23,6 @@ internal sealed class MainForm : Form
 
     private readonly TextBox _sourcePathBox;
     private readonly TextBox _repoRootBox;
-    private readonly ComboBox _sideImageSelect;
-    private readonly NumericUpDown _sideImageWidthUpDown;
-    private readonly Button _saveSideImageWidthButton;
     private readonly Button _checkChangesButton;
     private readonly Button _updateButton;
     private readonly Button _preferencesButton;
@@ -38,11 +35,11 @@ internal sealed class MainForm : Form
     private readonly ColumnStyle _sideImageColumnStyle;
 
     private readonly ToolStripMenuItem _openConfigMenuItem;
+    private readonly ToolStripMenuItem _sideImageMenuItem;
     private readonly ToolStripMenuItem _aboutMenuItem;
 
     private AppSettings _settings;
     private bool _isBusy;
-    private bool _isSideImageInitializing;
 
     private const int SideImageWidthMin = 120;
     private const int SideImageWidthMax = 520;
@@ -64,6 +61,9 @@ internal sealed class MainForm : Form
         var githubMenuItem = new ToolStripMenuItem("GitHub");
         githubMenuItem.Click += OnGithub;
 
+        _sideImageMenuItem = new ToolStripMenuItem("Side Image");
+        _sideImageMenuItem.Click += OnSideImageMenu;
+
         _openConfigMenuItem = new ToolStripMenuItem("config.json") { Enabled = false };
         _openConfigMenuItem.Click += OnOpenConfig;
 
@@ -71,6 +71,7 @@ internal sealed class MainForm : Form
         _aboutMenuItem.Click += OnAbout;
 
         menuRoot.DropDownItems.Add(_openConfigMenuItem);
+        menuRoot.DropDownItems.Add(_sideImageMenuItem);
         menuRoot.DropDownItems.Add(githubMenuItem);
         menuRoot.DropDownItems.Add(new ToolStripSeparator());
         menuRoot.DropDownItems.Add(_aboutMenuItem);
@@ -95,28 +96,6 @@ internal sealed class MainForm : Form
             ReadOnly = true,
             Width = 520
         };
-
-        _sideImageSelect = new ComboBox
-        {
-            DropDownStyle = ComboBoxStyle.DropDownList,
-            Width = 520
-        };
-        _sideImageSelect.SelectedIndexChanged += OnSideImageChanged;
-
-        _sideImageWidthUpDown = new NumericUpDown
-        {
-            Minimum = SideImageWidthMin,
-            Maximum = SideImageWidthMax,
-            Increment = 10,
-            Width = 90
-        };
-
-        _saveSideImageWidthButton = new Button
-        {
-            Text = "Save",
-            AutoSize = true
-        };
-        _saveSideImageWidthButton.Click += OnSaveSideImageWidth;
 
         var browseFileButton = new Button
         {
@@ -189,11 +168,10 @@ internal sealed class MainForm : Form
         var mainLayout = new TableLayoutPanel
         {
             Dock = DockStyle.Fill,
-            RowCount = 6,
+            RowCount = 5,
             ColumnCount = 1,
             Padding = new Padding(12)
         };
-        mainLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         mainLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         mainLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         mainLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
@@ -203,9 +181,8 @@ internal sealed class MainForm : Form
         mainLayout.Controls.Add(instructions, 0, 0);
         mainLayout.Controls.Add(CreatePathRow("Source personalbest.ini", _sourcePathBox, browseFileButton), 0, 1);
         mainLayout.Controls.Add(CreatePathRow("Website repo root", _repoRootBox, browseFolderButton), 0, 2);
-        mainLayout.Controls.Add(CreateLabeledRow("Side Image", CreateSideImageControls()), 0, 3);
-        mainLayout.Controls.Add(CreateActionsRow(), 0, 4);
-        mainLayout.Controls.Add(CreateOutputRow(), 0, 5);
+        mainLayout.Controls.Add(CreateActionsRow(), 0, 3);
+        mainLayout.Controls.Add(CreateOutputRow(), 0, 4);
 
         _shell = new TableLayoutPanel
         {
@@ -215,7 +192,6 @@ internal sealed class MainForm : Form
         };
 
         var initialWidth = ClampSideImageWidth(_settings.SideImageWidth ?? DefaultSideImageWidth);
-        _sideImageWidthUpDown.Value = initialWidth;
 
         _sideImageColumnStyle = new ColumnStyle(SizeType.Absolute, initialWidth);
         _shell.ColumnStyles.Add(_sideImageColumnStyle);
@@ -229,27 +205,11 @@ internal sealed class MainForm : Form
         Controls.Add(menuStrip);
 
         LoadSettingsIntoUi();
-        LoadSideImageOptions();
+        ApplySideImageFromSettings();
         UpdateButtonStates();
         ApplyStoredStatus();
 
         EnsureWindowFitsContent(initialWidth, mainLayout);
-    }
-
-    private Control CreateSideImageControls()
-    {
-        var row = new FlowLayoutPanel
-        {
-            AutoSize = true,
-            WrapContents = false,
-            FlowDirection = FlowDirection.LeftToRight
-        };
-
-        row.Controls.Add(_sideImageSelect);
-        row.Controls.Add(new Label { Text = "Width", AutoSize = true, Padding = new Padding(10, 6, 6, 0) });
-        row.Controls.Add(_sideImageWidthUpDown);
-        row.Controls.Add(_saveSideImageWidthButton);
-        return row;
     }
 
     private static int ClampSideImageWidth(int value)
@@ -355,76 +315,16 @@ internal sealed class MainForm : Form
         return Path.Combine(AppContext.BaseDirectory, "img");
     }
 
-    private void LoadSideImageOptions()
+    private void ApplySideImageFromSettings()
     {
-        _isSideImageInitializing = true;
-        try
+        if (string.IsNullOrWhiteSpace(_settings.SideImageFileName))
         {
-            _sideImageSelect.Items.Clear();
-
-            var imgDir = GetSideImageDirectory();
-            if (!Directory.Exists(imgDir))
-            {
-                _sideImageSelect.Enabled = false;
-                SetSideImage(null);
-                return;
-            }
-
-            var files = Directory
-                .EnumerateFiles(imgDir, "*.bmp", SearchOption.TopDirectoryOnly)
-                .Select(Path.GetFileName)
-                .OfType<string>()
-                .Where(f => !string.IsNullOrWhiteSpace(f))
-                .OrderBy(f => f, StringComparer.OrdinalIgnoreCase)
-                .ToList();
-
-            _sideImageSelect.Items.Add("(none)");
-            foreach (var f in files)
-            {
-                _sideImageSelect.Items.Add(f);
-            }
-
-            _sideImageSelect.Enabled = files.Count > 0;
-
-            var saved = _settings.SideImageFileName;
-            if (!string.IsNullOrWhiteSpace(saved) && files.Contains(saved, StringComparer.OrdinalIgnoreCase))
-            {
-                _sideImageSelect.SelectedItem = files.First(f => string.Equals(f, saved, StringComparison.OrdinalIgnoreCase));
-            }
-            else
-            {
-                _sideImageSelect.SelectedIndex = files.Count > 0 ? 1 : 0; // first image or (none)
-            }
-
-            ApplySelectedSideImageToUi();
-        }
-        finally
-        {
-            _isSideImageInitializing = false;
-        }
-    }
-
-    private void OnSideImageChanged(object? sender, EventArgs e)
-    {
-        if (_isSideImageInitializing)
-        {
+            SetSideImage(null);
             return;
         }
 
-        ApplySelectedSideImageToUi();
-
-        var selected = _sideImageSelect.SelectedItem?.ToString();
-        _settings.SideImageFileName = string.Equals(selected, "(none)", StringComparison.OrdinalIgnoreCase) ? null : selected;
-        SettingsStore.Save(_settings);
-    }
-
-    private void OnSaveSideImageWidth(object? sender, EventArgs e)
-    {
-        var width = ClampSideImageWidth((int)_sideImageWidthUpDown.Value);
-        _settings.SideImageWidth = width;
-        SettingsStore.Save(_settings);
-        ApplySideImageWidth(width);
-        SetStatus("Side image width saved!", Color.Green);
+        var path = Path.Combine(GetSideImageDirectory(), _settings.SideImageFileName);
+        SetSideImage(path);
     }
 
     private void ApplySideImageWidth(int width)
@@ -454,19 +354,6 @@ internal sealed class MainForm : Form
         }
     }
 
-    private void ApplySelectedSideImageToUi()
-    {
-        var selected = _sideImageSelect.SelectedItem?.ToString();
-        if (string.IsNullOrWhiteSpace(selected) || string.Equals(selected, "(none)", StringComparison.OrdinalIgnoreCase))
-        {
-            SetSideImage(null);
-            return;
-        }
-
-        var path = Path.Combine(GetSideImageDirectory(), selected);
-        SetSideImage(path);
-    }
-
     private void SetSideImage(string? imagePath)
     {
         try
@@ -488,6 +375,25 @@ internal sealed class MainForm : Form
         {
             // Ignore image errors; keep UI responsive.
         }
+    }
+
+    private void OnSideImageMenu(object? sender, EventArgs e)
+    {
+        using var form = new SideImageForm(_settings);
+        form.ShowDialog(this);
+
+        if (!form.WasSaved)
+        {
+            return;
+        }
+
+        // Reload from disk so UI follows config.json, then apply.
+        _settings = SettingsStore.Load();
+
+        var width = ClampSideImageWidth(_settings.SideImageWidth ?? DefaultSideImageWidth);
+        ApplySideImageWidth(width);
+        ApplySideImageFromSettings();
+        SetStatus("Side image saved!", Color.Green);
     }
 
     private void OnBrowseFile(object? sender, EventArgs e)
@@ -672,6 +578,7 @@ internal sealed class MainForm : Form
         _checkChangesButton.Enabled = !isBusy && PathsReady();
         _updateButton.Enabled = !isBusy && _updateButton.Enabled;
         _openConfigMenuItem.Enabled = !isBusy && CanOpenConfig();
+        _sideImageMenuItem.Enabled = !isBusy;
         _preferencesButton.Enabled = !isBusy && CanOpenPreference();
     }
 
@@ -690,6 +597,7 @@ internal sealed class MainForm : Form
         }
 
         _openConfigMenuItem.Enabled = !_isBusy && CanOpenConfig();
+        _sideImageMenuItem.Enabled = !_isBusy;
         _preferencesButton.Enabled = !_isBusy && CanOpenPreference();
     }
 
