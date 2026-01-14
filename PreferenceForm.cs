@@ -11,7 +11,8 @@ internal sealed class PreferenceForm : Form
     private readonly string _repoRootPath;
 
     private readonly TextBox _driverName;
-    private readonly TextBox _driverGear;
+    private readonly ComboBox _driverGearSelect;
+    private readonly TextBox _driverGearOther;
     private readonly TextBox _featuredLinkLabel;
     private readonly TextBox _featuredLinkUrl;
 
@@ -31,6 +32,13 @@ internal sealed class PreferenceForm : Form
     private WebsiteConfig? _config;
 
     public bool WasSaved { get; private set; }
+
+    private static readonly string[] KnownGears =
+    [
+        "gamepad",
+        "wheel-pedal",
+        "keyboard-mouse"
+    ];
 
     public PreferenceForm(string repoRootPath)
     {
@@ -59,7 +67,36 @@ internal sealed class PreferenceForm : Form
         // Driver profile
         AddHeader(layout, "Driver Profile");
         _driverName = AddRow(layout, "Name", singleLine: true, placeholder: "Your driver alias");
-        _driverGear = AddRow(layout, "Gear", singleLine: true, placeholder: "Your driving setup (wheel, gamepad, keyboard, etc.)");
+
+        _driverGearSelect = new ComboBox
+        {
+            DropDownStyle = ComboBoxStyle.DropDownList,
+            IntegralHeight = false,
+            Width = 160
+        };
+        _driverGearSelect.Items.AddRange(["gamepad", "wheel-pedal", "keyboard-mouse", "other"]);
+        _driverGearSelect.SelectedIndexChanged += (_, _) => UpdateGearUi();
+
+        _driverGearOther = new TextBox
+        {
+            Dock = DockStyle.Fill,
+            PlaceholderText = "Specify your setup"
+        };
+
+        var gearPanel = new TableLayoutPanel
+        {
+            AutoSize = true,
+            AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            ColumnCount = 2,
+            Dock = DockStyle.Fill
+        };
+        gearPanel.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+        gearPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        gearPanel.Controls.Add(_driverGearSelect, 0, 0);
+        gearPanel.Controls.Add(_driverGearOther, 1, 0);
+
+        AddControlRow(layout, "Gear", gearPanel);
+
         _featuredLinkLabel = AddRow(layout, "Featured link label", singleLine: true, placeholder: "Label for your featured profile link (e.g., Steam)");
         _featuredLinkUrl = AddRow(layout, "Featured link url", singleLine: true, placeholder: string.Empty);
 
@@ -214,7 +251,7 @@ internal sealed class PreferenceForm : Form
             _config ??= new WebsiteConfig();
 
             _driverName.Text = _config.DriverProfile.Name ?? string.Empty;
-            _driverGear.Text = _config.DriverProfile.Gear ?? string.Empty;
+            SetGearFromConfig(_config.DriverProfile.Gear);
             _featuredLinkLabel.Text = _config.DriverProfile.FeaturedLink.Label ?? string.Empty;
             _featuredLinkUrl.Text = _config.DriverProfile.FeaturedLink.Url ?? string.Empty;
 
@@ -243,7 +280,7 @@ internal sealed class PreferenceForm : Form
             _config ??= new WebsiteConfig();
 
             _config.DriverProfile.Name = _driverName.Text.Trim();
-            _config.DriverProfile.Gear = _driverGear.Text.Trim();
+            _config.DriverProfile.Gear = GetGearForSave();
             _config.DriverProfile.FeaturedLink.Label = _featuredLinkLabel.Text.Trim();
             _config.DriverProfile.FeaturedLink.Url = _featuredLinkUrl.Text.Trim();
 
@@ -276,6 +313,56 @@ internal sealed class PreferenceForm : Form
         {
             MessageBox.Show(this, $"Failed to save config.json: {ex.Message}", "Preference", MessageBoxButtons.OK, MessageBoxIcon.Error);
         }
+    }
+
+    private void SetGearFromConfig(string? gear)
+    {
+        var trimmed = (gear ?? string.Empty).Trim();
+        if (string.IsNullOrWhiteSpace(trimmed))
+        {
+            _driverGearSelect.SelectedItem = "gamepad";
+            _driverGearOther.Text = string.Empty;
+            UpdateGearUi();
+            return;
+        }
+
+        var knownMatch = KnownGears.FirstOrDefault(g => string.Equals(g, trimmed, StringComparison.OrdinalIgnoreCase));
+        if (knownMatch != null)
+        {
+            _driverGearSelect.SelectedItem = knownMatch;
+            _driverGearOther.Text = string.Empty;
+            UpdateGearUi();
+            return;
+        }
+
+        _driverGearSelect.SelectedItem = "other";
+        _driverGearOther.Text = trimmed;
+        UpdateGearUi();
+    }
+
+    private string? GetGearForSave()
+    {
+        var selected = _driverGearSelect.SelectedItem?.ToString();
+        if (string.IsNullOrWhiteSpace(selected))
+        {
+            return null;
+        }
+
+        if (string.Equals(selected, "other", StringComparison.OrdinalIgnoreCase))
+        {
+            var other = _driverGearOther.Text.Trim();
+            return string.IsNullOrWhiteSpace(other) ? null : other;
+        }
+
+        return selected;
+    }
+
+    private void UpdateGearUi()
+    {
+        var selected = _driverGearSelect.SelectedItem?.ToString();
+        var isOther = string.Equals(selected, "other", StringComparison.OrdinalIgnoreCase);
+        _driverGearOther.Visible = isOther;
+        _driverGearOther.Enabled = isOther;
     }
 }
 
