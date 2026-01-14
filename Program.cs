@@ -91,12 +91,16 @@ internal sealed class MainForm : Form
         _sourcePathBox = new TextBox
         {
             ReadOnly = true,
+            TabStop = false,
+            Cursor = Cursors.Arrow,
             Width = 520
         };
 
         _repoRootBox = new TextBox
         {
             ReadOnly = true,
+            TabStop = false,
+            Cursor = Cursors.Arrow,
             Width = 520
         };
 
@@ -107,12 +111,16 @@ internal sealed class MainForm : Form
         };
         browseFileButton.Click += OnBrowseFile;
 
+        _sourcePathBox.Enter += (_, _) => browseFileButton.Focus();
+
         var browseFolderButton = new Button
         {
             Text = "Browse folder",
             AutoSize = true
         };
         browseFolderButton.Click += OnBrowseFolder;
+
+        _repoRootBox.Enter += (_, _) => browseFolderButton.Focus();
 
         _checkChangesButton = new Button
         {
