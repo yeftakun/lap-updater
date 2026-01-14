@@ -47,11 +47,13 @@ internal sealed class MainForm : Form
     private const int SideImageWidthMin = 120;
     private const int SideImageWidthMax = 520;
     private const int DefaultSideImageWidth = 300;
+    private const int WindowWidthMargin = 40;
 
     public MainForm()
     {
         Text = "Lap Time Updater";
-        Width = 1020;
+        var baseWindowWidth = 1020;
+        Width = baseWindowWidth;
         Height = 520;
         StartPosition = FormStartPosition.CenterScreen;
         _settings = SettingsStore.Load();
@@ -213,6 +215,7 @@ internal sealed class MainForm : Form
         };
 
         var initialWidth = ClampSideImageWidth(_settings.SideImageWidth ?? DefaultSideImageWidth);
+        Width = ClampWindowWidthToScreen(baseWindowWidth + (initialWidth - DefaultSideImageWidth));
         _sideImageWidthUpDown.Value = initialWidth;
 
         _sideImageColumnStyle = new ColumnStyle(SizeType.Absolute, initialWidth);
@@ -251,6 +254,13 @@ internal sealed class MainForm : Form
     private static int ClampSideImageWidth(int value)
     {
         return Math.Clamp(value, SideImageWidthMin, SideImageWidthMax);
+    }
+
+    private int ClampWindowWidthToScreen(int requestedWidth)
+    {
+        var area = Screen.FromControl(this).WorkingArea;
+        var max = Math.Max(300, area.Width - WindowWidthMargin);
+        return Math.Min(requestedWidth, max);
     }
 
     private Control CreatePathRow(string label, Control textBox, Control button)
@@ -407,6 +417,17 @@ internal sealed class MainForm : Form
     private void ApplySideImageWidth(int width)
     {
         width = ClampSideImageWidth(width);
+
+        var oldWidth = (int)_sideImageColumnStyle.Width;
+        if (oldWidth == width)
+        {
+            return;
+        }
+
+        // Keep the right content area from shrinking by widening the window
+        // by the same delta as the side image width.
+        var delta = width - oldWidth;
+        Width = ClampWindowWidthToScreen(Width + delta);
 
         _shell.SuspendLayout();
         try
