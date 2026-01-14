@@ -843,22 +843,22 @@ internal sealed class MainForm : Form
 internal sealed record AppSettings
 {
     [JsonPropertyName("sourceIniPath")]
-    public string? SourceIniPath { get; set; }
+    public string? SourceIniPath { get; set; } = string.Empty;
 
     [JsonPropertyName("repoRootPath")]
-    public string? RepoRootPath { get; set; }
+    public string? RepoRootPath { get; set; } = string.Empty;
 
     [JsonPropertyName("sideImageFileName")]
-    public string? SideImageFileName { get; set; }
+    public string? SideImageFileName { get; set; } = "shiroko-vert.bmp";
 
     [JsonPropertyName("sideImageWidth")]
-    public int? SideImageWidth { get; set; }
+    public int? SideImageWidth { get; set; } = 224;
 
     [JsonPropertyName("sideImageBasedOnPicture")]
-    public bool SideImageBasedOnPicture { get; set; }
+    public bool SideImageBasedOnPicture { get; set; } = true;
 
     [JsonPropertyName("lastPushStatus")]
-    public PushStatus LastPushStatus { get; set; }
+    public PushStatus LastPushStatus { get; set; } = PushStatus.None;
 }
 
 internal enum PushStatus
@@ -887,11 +887,20 @@ internal static class SettingsStore
                 var legacyPath = GetLegacySettingsPath();
                 if (!File.Exists(legacyPath))
                 {
-                    return new AppSettings();
+                    // First-run / cleared data: create a fresh config with defaults.
+                    var defaults = new AppSettings();
+                    Save(defaults);
+                    return defaults;
                 }
 
                 var legacyJson = File.ReadAllText(legacyPath);
                 var legacySettings = JsonSerializer.Deserialize<AppSettings>(legacyJson) ?? new AppSettings();
+
+                // Fill newer fields if legacy config didn't contain them.
+                legacySettings.SourceIniPath ??= string.Empty;
+                legacySettings.RepoRootPath ??= string.Empty;
+                legacySettings.SideImageFileName ??= "shiroko-vert.bmp";
+                legacySettings.SideImageWidth ??= 224;
 
                 // Best-effort migration: write to the new location.
                 Save(legacySettings);
