@@ -25,11 +25,13 @@ internal sealed class MainForm : Form
     private readonly TextBox _repoRootBox;
     private readonly Button _checkChangesButton;
     private readonly Button _updateButton;
-    private readonly Button _openConfigButton;
     private readonly Button _preferencesButton;
     private readonly Button _clearConsoleButton;
     private readonly RichTextBox _outputBox;
     private readonly Label _statusLabel;
+
+    private readonly ToolStripMenuItem _openConfigMenuItem;
+    private readonly ToolStripMenuItem _aboutMenuItem;
 
     private AppSettings _settings;
     private bool _isBusy;
@@ -41,6 +43,21 @@ internal sealed class MainForm : Form
         Height = 520;
         StartPosition = FormStartPosition.CenterScreen;
         _settings = SettingsStore.Load();
+
+        var menuStrip = new MenuStrip { Dock = DockStyle.Top };
+        var menuRoot = new ToolStripMenuItem("Menu");
+
+        _openConfigMenuItem = new ToolStripMenuItem("config.json") { Enabled = false };
+        _openConfigMenuItem.Click += OnOpenConfig;
+
+        _aboutMenuItem = new ToolStripMenuItem("About");
+        _aboutMenuItem.Click += OnAbout;
+
+        menuRoot.DropDownItems.Add(_openConfigMenuItem);
+        menuRoot.DropDownItems.Add(new ToolStripSeparator());
+        menuRoot.DropDownItems.Add(_aboutMenuItem);
+        menuStrip.Items.Add(menuRoot);
+        MainMenuStrip = menuStrip;
 
         var instructions = new Label
         {
@@ -90,14 +107,6 @@ internal sealed class MainForm : Form
             Enabled = false
         };
         _updateButton.Click += OnUpdate;
-
-        _openConfigButton = new Button
-        {
-            Text = "config.json",
-            AutoSize = true,
-            Enabled = false
-        };
-        _openConfigButton.Click += OnOpenConfig;
 
         _preferencesButton = new Button
         {
@@ -150,6 +159,7 @@ internal sealed class MainForm : Form
         mainLayout.Controls.Add(CreateOutputRow(), 0, 4);
 
         Controls.Add(mainLayout);
+        Controls.Add(menuStrip);
 
         LoadSettingsIntoUi();
         UpdateButtonStates();
@@ -185,7 +195,6 @@ internal sealed class MainForm : Form
 
         row.Controls.Add(_checkChangesButton);
         row.Controls.Add(_updateButton);
-        row.Controls.Add(_openConfigButton);
         row.Controls.Add(_preferencesButton);
         row.Controls.Add(_clearConsoleButton);
         row.Controls.Add(_statusLabel);
@@ -397,7 +406,7 @@ internal sealed class MainForm : Form
         _isBusy = isBusy;
         _checkChangesButton.Enabled = !isBusy && PathsReady();
         _updateButton.Enabled = !isBusy && _updateButton.Enabled;
-        _openConfigButton.Enabled = !isBusy && CanOpenConfig();
+        _openConfigMenuItem.Enabled = !isBusy && CanOpenConfig();
         _preferencesButton.Enabled = !isBusy && CanOpenPreference();
     }
 
@@ -415,7 +424,7 @@ internal sealed class MainForm : Form
             _updateButton.Enabled = false;
         }
 
-        _openConfigButton.Enabled = !_isBusy && CanOpenConfig();
+        _openConfigMenuItem.Enabled = !_isBusy && CanOpenConfig();
         _preferencesButton.Enabled = !_isBusy && CanOpenPreference();
     }
 
@@ -457,6 +466,12 @@ internal sealed class MainForm : Form
         {
             MessageBox.Show(this, $"Failed to open config location: {ex.Message}", "Config", MessageBoxButtons.OK, MessageBoxIcon.Error);
         }
+    }
+
+    private void OnAbout(object? sender, EventArgs e)
+    {
+        using var form = new AboutForm();
+        form.ShowDialog(this);
     }
 
     private async Task<CommandResult> RunCommandAsync(string fileName, string arguments)
