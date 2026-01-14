@@ -47,6 +47,9 @@ internal sealed class MainForm : Form
         var menuStrip = new MenuStrip { Dock = DockStyle.Top };
         var menuRoot = new ToolStripMenuItem("Menu");
 
+        var githubMenuItem = new ToolStripMenuItem("GitHub");
+        githubMenuItem.Click += OnGithub;
+
         _openConfigMenuItem = new ToolStripMenuItem("config.json") { Enabled = false };
         _openConfigMenuItem.Click += OnOpenConfig;
 
@@ -54,6 +57,7 @@ internal sealed class MainForm : Form
         _aboutMenuItem.Click += OnAbout;
 
         menuRoot.DropDownItems.Add(_openConfigMenuItem);
+        menuRoot.DropDownItems.Add(githubMenuItem);
         menuRoot.DropDownItems.Add(new ToolStripSeparator());
         menuRoot.DropDownItems.Add(_aboutMenuItem);
         menuStrip.Items.Add(menuRoot);
@@ -472,6 +476,21 @@ internal sealed class MainForm : Form
     {
         using var form = new AboutForm();
         form.ShowDialog(this);
+    }
+
+    private void OnGithub(object? sender, EventArgs e)
+    {
+        try
+        {
+            Process.Start(new ProcessStartInfo("https://github.com/yeftakun/lap-updater")
+            {
+                UseShellExecute = true
+            });
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(this, $"Failed to open link: {ex.Message}", "Github", MessageBoxButtons.OK, MessageBoxIcon.Error);
+        }
     }
 
     private async Task<CommandResult> RunCommandAsync(string fileName, string arguments)
