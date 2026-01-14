@@ -31,8 +31,8 @@ internal sealed class AboutForm : Form
                 "Features:" + Environment.NewLine +
                 "- Copy personalbest.ini into the repo data folder" + Environment.NewLine +
                 "- Check changes and push via git" + Environment.NewLine +
-                "- Edit website config (src/data/config.json) via Preference" + Environment.NewLine +
-                "- Configure Side Image (image, width, based on picture)" + Environment.NewLine +
+                "- Edit website config (src/data/config.json) on Preference" + Environment.NewLine +
+                "- Side Image" + Environment.NewLine +
                 Environment.NewLine +
                 "App config location:" + Environment.NewLine +
                 "%APPDATA%\\LapUpdater\\config.json" + Environment.NewLine +
