@@ -26,6 +26,7 @@ internal sealed class MainForm : Form
     private readonly Button _checkChangesButton;
     private readonly Button _updateButton;
     private readonly Button _openConfigButton;
+    private readonly Button _preferencesButton;
     private readonly Button _clearConsoleButton;
     private readonly RichTextBox _outputBox;
     private readonly Label _statusLabel;
@@ -97,6 +98,14 @@ internal sealed class MainForm : Form
             Enabled = false
         };
         _openConfigButton.Click += OnOpenConfig;
+
+        _preferencesButton = new Button
+        {
+            Text = "Preference",
+            AutoSize = true,
+            Enabled = false
+        };
+        _preferencesButton.Click += OnOpenPreference;
 
         _clearConsoleButton = new Button
         {
@@ -177,6 +186,7 @@ internal sealed class MainForm : Form
         row.Controls.Add(_checkChangesButton);
         row.Controls.Add(_updateButton);
         row.Controls.Add(_openConfigButton);
+        row.Controls.Add(_preferencesButton);
         row.Controls.Add(_clearConsoleButton);
         row.Controls.Add(_statusLabel);
         return row;
@@ -388,6 +398,7 @@ internal sealed class MainForm : Form
         _checkChangesButton.Enabled = !isBusy && PathsReady();
         _updateButton.Enabled = !isBusy && _updateButton.Enabled;
         _openConfigButton.Enabled = !isBusy && CanOpenConfig();
+        _preferencesButton.Enabled = !isBusy && CanOpenPreference();
     }
 
     private bool PathsReady()
@@ -405,12 +416,24 @@ internal sealed class MainForm : Form
         }
 
         _openConfigButton.Enabled = !_isBusy && CanOpenConfig();
+        _preferencesButton.Enabled = !_isBusy && CanOpenPreference();
+    }
+
+    private bool RepoRootReady()
+    {
+        return !string.IsNullOrWhiteSpace(_settings.RepoRootPath) && Directory.Exists(_settings.RepoRootPath);
     }
 
     private bool CanOpenConfig()
     {
         // As requested: only enabled if config exists AND user already set both paths.
         return PathsReady() && File.Exists(SettingsStore.GetConfigPath());
+    }
+
+    private bool CanOpenPreference()
+    {
+        // Enabled when website repo root is assigned.
+        return RepoRootReady();
     }
 
     private void OnOpenConfig(object? sender, EventArgs e)
@@ -566,6 +589,18 @@ internal sealed class MainForm : Form
             MessageBox.Show(this, "No Internet Connection", "Network", MessageBoxButtons.OK, MessageBoxIcon.Warning);
             return false;
         }
+    }
+
+    private void OnOpenPreference(object? sender, EventArgs e)
+    {
+        if (!RepoRootReady())
+        {
+            MessageBox.Show(this, "Select a valid repository root folder first.", "Missing folder", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            return;
+        }
+
+        using var form = new PreferenceForm(_settings.RepoRootPath!);
+        form.ShowDialog(this);
     }
 }
 

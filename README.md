@@ -9,7 +9,7 @@ Download [LapUpdater 1.0.0](https://github.com/yeftakun/lap-updater/releases/dow
 ## Published Requirements
 Build command (framework-dependent, assumes .NET 8 installed on target):
   ```
-  dotnet publish "{root}\LapUpdater.csproj" -c Release --self-contained false -p:PublishSingleFile=false
+  dotnet publish "{root_path}\LapUpdater.csproj" -c Release --self-contained false -p:PublishSingleFile=false
   ```
 - Output folder after publish: `{root}/bin/Release/net8.0-windows/publish/`
 - Target OS: Windows x64
