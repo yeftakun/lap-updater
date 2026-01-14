@@ -636,8 +636,8 @@ internal sealed class MainForm : Form
 
     private bool CanOpenConfig()
     {
-        // As requested: only enabled if config exists AND user already set both paths.
-        return PathsReady() && File.Exists(SettingsStore.GetConfigPath());
+        // Allow opening app config even before user selects any paths.
+        return File.Exists(SettingsStore.GetConfigPath());
     }
 
     private bool CanOpenPreference()
