@@ -380,20 +380,25 @@ internal sealed class MainForm : Form
     private void OnSideImageMenu(object? sender, EventArgs e)
     {
         using var form = new SideImageForm(_settings);
+        form.Saved += (_, args) =>
+        {
+            _settings.SideImageFileName = args.FileName;
+            _settings.SideImageWidth = args.Width;
+
+            ApplySideImageWidth(args.Width);
+            ApplySideImageFromSettings();
+            SetStatus("Side image saved!", Color.Green);
+        };
+
         form.ShowDialog(this);
 
-        if (!form.WasSaved)
+        // If user saved at least once, ensure main UI reflects the last saved state.
+        if (form.WasSaved)
         {
-            return;
+            var width = ClampSideImageWidth(_settings.SideImageWidth ?? DefaultSideImageWidth);
+            ApplySideImageWidth(width);
+            ApplySideImageFromSettings();
         }
-
-        // Reload from disk so UI follows config.json, then apply.
-        _settings = SettingsStore.Load();
-
-        var width = ClampSideImageWidth(_settings.SideImageWidth ?? DefaultSideImageWidth);
-        ApplySideImageWidth(width);
-        ApplySideImageFromSettings();
-        SetStatus("Side image saved!", Color.Green);
     }
 
     private void OnBrowseFile(object? sender, EventArgs e)

@@ -18,6 +18,8 @@ internal sealed class SideImageForm : Form
 
     public bool WasSaved { get; private set; }
 
+    public event EventHandler<SideImageSavedEventArgs>? Saved;
+
     public SideImageForm(AppSettings settings)
     {
         _settings = settings;
@@ -164,11 +166,17 @@ internal sealed class SideImageForm : Form
         }
 
         var selected = _imageSelect.SelectedItem?.ToString();
-        _settings.SideImageFileName = string.Equals(selected, "(none)", StringComparison.OrdinalIgnoreCase) ? null : selected;
-        _settings.SideImageWidth = ClampSideImageWidth((int)_widthUpDown.Value);
+        var fileName = string.Equals(selected, "(none)", StringComparison.OrdinalIgnoreCase) ? null : selected;
+        var width = ClampSideImageWidth((int)_widthUpDown.Value);
+
+        _settings.SideImageFileName = fileName;
+        _settings.SideImageWidth = width;
 
         SettingsStore.Save(_settings);
         WasSaved = true;
-        Close();
+
+        Saved?.Invoke(this, new SideImageSavedEventArgs(fileName, width));
     }
 }
+
+internal sealed record SideImageSavedEventArgs(string? FileName, int Width);
