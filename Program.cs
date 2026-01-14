@@ -601,6 +601,11 @@ internal sealed class MainForm : Form
 
         using var form = new PreferenceForm(_settings.RepoRootPath!);
         form.ShowDialog(this);
+
+        if (form.WasSaved)
+        {
+            SetStatus("Preference saved!", Color.Green);
+        }
     }
 }
 

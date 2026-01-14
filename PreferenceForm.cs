@@ -30,21 +30,26 @@ internal sealed class PreferenceForm : Form
 
     private WebsiteConfig? _config;
 
+    public bool WasSaved { get; private set; }
+
     public PreferenceForm(string repoRootPath)
     {
         _repoRootPath = repoRootPath;
 
         Text = "Preference";
-        Width = 720;
-        Height = 640;
         StartPosition = FormStartPosition.CenterParent;
         MinimizeBox = false;
         MaximizeBox = false;
 
+        AutoSize = true;
+        AutoSizeMode = AutoSizeMode.GrowAndShrink;
+        MinimumSize = new Size(720, 0);
+
         var layout = new TableLayoutPanel
         {
+            AutoSize = true,
+            AutoSizeMode = AutoSizeMode.GrowAndShrink,
             Dock = DockStyle.Fill,
-            AutoScroll = true,
             Padding = new Padding(12),
             ColumnCount = 2
         };
@@ -100,6 +105,26 @@ internal sealed class PreferenceForm : Form
         Controls.Add(layout);
 
         LoadConfigIntoUi();
+
+        Shown += (_, _) => ClampToScreen();
+    }
+
+    private void ClampToScreen()
+    {
+        // Keep the auto-sized form within the visible working area.
+        var area = Screen.FromControl(this).WorkingArea;
+        var maxWidth = Math.Max(300, area.Width - 40);
+        var maxHeight = Math.Max(300, area.Height - 40);
+
+        if (Width > maxWidth)
+        {
+            Width = maxWidth;
+        }
+
+        if (Height > maxHeight)
+        {
+            Height = maxHeight;
+        }
     }
 
     private static void AddHeader(TableLayoutPanel layout, string title)
@@ -109,7 +134,8 @@ internal sealed class PreferenceForm : Form
             Text = title,
             AutoSize = true,
             Font = new Font(SystemFonts.DefaultFont, FontStyle.Bold),
-            Padding = new Padding(0, 12, 0, 6)
+            Padding = new Padding(0, 12, 0, 6),
+            Dock = DockStyle.Fill
         };
 
         layout.Controls.Add(label, 0, layout.RowCount);
@@ -122,7 +148,7 @@ internal sealed class PreferenceForm : Form
     {
         var tb = new TextBox
         {
-            Dock = DockStyle.Top,
+            Dock = DockStyle.Fill,
             Multiline = !singleLine,
             ScrollBars = singleLine ? ScrollBars.None : ScrollBars.Vertical
         };
@@ -142,8 +168,14 @@ internal sealed class PreferenceForm : Form
         {
             Text = label,
             AutoSize = true,
-            Padding = new Padding(0, 6, 8, 0)
+            Padding = new Padding(0, 6, 8, 0),
+            Anchor = AnchorStyles.Left
         };
+
+        if (control is CheckBox)
+        {
+            control.Anchor = AnchorStyles.Left;
+        }
 
         layout.Controls.Add(lbl, 0, layout.RowCount);
         layout.Controls.Add(control, 1, layout.RowCount);
@@ -231,7 +263,9 @@ internal sealed class PreferenceForm : Form
             });
 
             File.WriteAllText(path, json, Encoding.UTF8);
-            MessageBox.Show(this, "Saved.", "Preference", MessageBoxButtons.OK, MessageBoxIcon.Information);
+
+            WasSaved = true;
+            Close();
         }
         catch (Exception ex)
         {
