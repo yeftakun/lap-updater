@@ -1,8 +1,10 @@
 #define MyAppName "LapUpdater"
-#define MyAppVersion "1.0.0"
+#define MyAppVersion "1.1.0"
 #define MyAppPublisher "yeftakun"
 #define MyAppExeName "LapUpdater.exe"
 #define MyIconFile "icon.ico"
+
+#define PublishDir "bin\Release\net8.0-windows\publish"
 
 [Setup]
 AppId={{B8C4193B-4E0E-4780-B81A-8666C52E1E9D}}
@@ -10,8 +12,9 @@ AppName={#MyAppName}
 AppVersion={#MyAppVersion}
 AppPublisher={#MyAppPublisher}
 
-WizardImageFile=app\shiroko-vert.bmp
-WizardSmallImageFile=app\shiroko-miaw.bmp
+; Installer visuals (from ast/)
+WizardImageFile=ast\shiroko-vert.bmp
+WizardSmallImageFile=ast\shiroko-miaw.bmp
 DisableWelcomePage=no
 DisableFinishedPage=no
 
@@ -26,11 +29,10 @@ Compression=lzma2
 SolidCompression=yes
 WizardStyle=classic
 
-; No admin needed (your app writes config to %APPDATA%)
 PrivilegesRequired=admin
 
-; Installer / Add-Remove Programs icon
-SetupIconFile=app\{#MyIconFile}
+; Installer / Add-Remove Programs icon (from ast/)
+SetupIconFile=ast\{#MyIconFile}
 UninstallDisplayIcon={app}\{#MyIconFile}
 
 [Languages]
@@ -40,8 +42,10 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 Name: "desktopicon"; Description: "Create a desktop shortcut"; Flags: unchecked
 
 [Files]
-; Install everything from the "app" folder
-Source: "app\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+; Install everything from the publish folder
+Source: "{#PublishDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+; Also install icon into {app} so shortcuts/uninstall icon can point to it
+Source: "ast\{#MyIconFile}"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]
 Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; IconFilename: "{app}\{#MyIconFile}"

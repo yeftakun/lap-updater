@@ -19,3 +19,6 @@ obj/
 
 # Local app settings
 settings.json
+
+# Inno setup
+Output/
