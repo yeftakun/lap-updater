@@ -33,6 +33,7 @@ internal sealed class MainForm : Form
     private readonly PictureBox _sideImageBox;
     private readonly TableLayoutPanel _shell;
     private readonly ColumnStyle _sideImageColumnStyle;
+    private readonly Control _rightContent;
 
     private readonly ToolStripMenuItem _openConfigMenuItem;
     private readonly ToolStripMenuItem _sideImageMenuItem;
@@ -193,7 +194,7 @@ internal sealed class MainForm : Form
             RowCount = 1
         };
 
-        var initialWidth = ClampSideImageWidth(_settings.SideImageWidth ?? DefaultSideImageWidth);
+        var initialWidth = GetInitialSideImageWidth(_settings);
 
         _sideImageColumnStyle = new ColumnStyle(SizeType.Absolute, initialWidth);
         _shell.ColumnStyles.Add(_sideImageColumnStyle);
@@ -202,6 +203,8 @@ internal sealed class MainForm : Form
 
         _shell.Controls.Add(_sideImageBox, 0, 0);
         _shell.Controls.Add(mainLayout, 1, 0);
+
+        _rightContent = mainLayout;
 
         Controls.Add(_shell);
         Controls.Add(menuStrip);
@@ -236,6 +239,16 @@ internal sealed class MainForm : Form
     private static int ClampSideImageWidth(int value)
     {
         return Math.Clamp(value, SideImageWidthMin, SideImageWidthMax);
+    }
+
+    private static int GetInitialSideImageWidth(AppSettings settings)
+    {
+        if (string.IsNullOrWhiteSpace(settings.SideImageFileName))
+        {
+            return 0;
+        }
+
+        return ClampSideImageWidth(settings.SideImageWidth ?? DefaultSideImageWidth);
     }
 
     private void EnsureWindowFitsContent(int sideWidth, Control rightContent)
@@ -340,12 +353,62 @@ internal sealed class MainForm : Form
     {
         if (string.IsNullOrWhiteSpace(_settings.SideImageFileName))
         {
+            CollapseSideImageArea();
             SetSideImage(null);
             return;
         }
 
+        ExpandSideImageArea();
+        ApplySideImageWidth(_settings.SideImageWidth ?? DefaultSideImageWidth);
+
         var path = Path.Combine(GetSideImageDirectory(), _settings.SideImageFileName);
         SetSideImage(path);
+    }
+
+    private void CollapseSideImageArea()
+    {
+        var oldWidth = (int)_sideImageColumnStyle.Width;
+
+        _shell.SuspendLayout();
+        try
+        {
+            _sideImageBox.Visible = false;
+            _sideImageColumnStyle.SizeType = SizeType.Absolute;
+            _sideImageColumnStyle.Width = 0;
+        }
+        finally
+        {
+            _shell.ResumeLayout(true);
+        }
+
+        // Keep overall window width stable: if we collapsed a previously-visible side area,
+        // shrink the window by the same amount (but never below content minimum).
+        if (oldWidth > 0)
+        {
+            var measuredRight = _rightContent.GetPreferredSize(new Size(int.MaxValue, int.MaxValue)).Width;
+            var rightWidth = Math.Max(RightContentMinWidth, measuredRight);
+
+            var minWindowWidth = SizeFromClientSize(new Size(rightWidth, ClientSize.Height)).Width;
+            Width = ClampWindowWidthToScreen(Math.Max(minWindowWidth, Width - oldWidth));
+        }
+    }
+
+    private void ExpandSideImageArea()
+    {
+        if (_sideImageBox.Visible)
+        {
+            return;
+        }
+
+        _shell.SuspendLayout();
+        try
+        {
+            _sideImageBox.Visible = true;
+        }
+        finally
+        {
+            _shell.ResumeLayout(true);
+        }
     }
 
     private void ApplySideImageWidth(int width)
@@ -408,7 +471,6 @@ internal sealed class MainForm : Form
             _settings.SideImageWidth = args.Width;
             _settings.SideImageBasedOnPicture = args.BasedOnPicture;
 
-            ApplySideImageWidth(args.Width);
             ApplySideImageFromSettings();
             SetStatus("Side image saved!", Color.Green);
         };
@@ -418,8 +480,6 @@ internal sealed class MainForm : Form
         // If user saved at least once, ensure main UI reflects the last saved state.
         if (form.WasSaved)
         {
-            var width = ClampSideImageWidth(_settings.SideImageWidth ?? DefaultSideImageWidth);
-            ApplySideImageWidth(width);
             ApplySideImageFromSettings();
         }
     }
