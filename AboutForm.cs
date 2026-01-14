@@ -1,4 +1,5 @@
 using System.Drawing;
+using System.Reflection;
 using System.Windows.Forms;
 
 namespace LapUpdater;
@@ -7,6 +8,8 @@ internal sealed class AboutForm : Form
 {
     public AboutForm()
     {
+        var versionText = GetAppVersionText();
+
         Text = "About";
         AutoScaleMode = AutoScaleMode.Dpi;
         Font = new Font("Segoe UI", 10F);
@@ -21,8 +24,8 @@ internal sealed class AboutForm : Form
             AutoSize = true,
             MaximumSize = new Size(460, 0),
             Text =
-                "Lap Time Updater" + Environment.NewLine +
-                Environment.NewLine +
+                "Lap Time Updater " + versionText + 
+                Environment.NewLine + Environment.NewLine +
                 "A small utility to quickly update your lap times to your website repo." + Environment.NewLine +
                 Environment.NewLine +
                 "Features:" + Environment.NewLine +
@@ -67,5 +70,34 @@ internal sealed class AboutForm : Form
 
         AutoSize = true;
         AutoSizeMode = AutoSizeMode.GrowAndShrink;
+    }
+
+    private static string GetAppVersionText()
+    {
+        try
+        {
+            var assembly = typeof(AboutForm).Assembly;
+
+            var info = assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion;
+            if (!string.IsNullOrWhiteSpace(info))
+            {
+                // .NET SDK may append build metadata like "+<git-sha>" for traceability.
+                // For display purposes, hide the metadata and show only the semver core.
+                var plusIndex = info.IndexOf('+');
+                if (plusIndex >= 0)
+                {
+                    info = info[..plusIndex];
+                }
+
+                return $"v{info}";
+            }
+
+            var version = assembly.GetName().Version?.ToString();
+            return string.IsNullOrWhiteSpace(version) ? "" : $"v{version}";
+        }
+        catch
+        {
+            return string.Empty;
+        }
     }
 }
