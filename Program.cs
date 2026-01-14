@@ -222,7 +222,7 @@ internal sealed class MainForm : Form
         UpdateButtonStates();
         ApplyStoredStatus();
 
-        EnsureWindowFitsContent(initialWidth, mainLayout);
+        EnsureWindowFitsContent(initialWidth, mainLayout, allowShrink: string.IsNullOrWhiteSpace(_settings.SideImageFileName));
     }
 
     private static Font CreateConsoleFont(float size)
@@ -259,7 +259,7 @@ internal sealed class MainForm : Form
         return ClampSideImageWidth(settings.SideImageWidth ?? DefaultSideImageWidth);
     }
 
-    private void EnsureWindowFitsContent(int sideWidth, Control rightContent)
+    private void EnsureWindowFitsContent(int sideWidth, Control rightContent, bool allowShrink)
     {
         // TableLayoutPanel with Dock=Fill doesn't always report a useful PreferredSize,
         // so we combine measurement with a safe minimum.
@@ -268,7 +268,9 @@ internal sealed class MainForm : Form
 
         var desiredClientWidth = sideWidth + rightWidth;
         var desiredWindowWidth = SizeFromClientSize(new Size(desiredClientWidth, ClientSize.Height)).Width;
-        Width = ClampWindowWidthToScreen(Math.Max(Width, desiredWindowWidth));
+        Width = allowShrink
+            ? ClampWindowWidthToScreen(desiredWindowWidth)
+            : ClampWindowWidthToScreen(Math.Max(Width, desiredWindowWidth));
     }
 
     private int ClampWindowWidthToScreen(int requestedWidth)
