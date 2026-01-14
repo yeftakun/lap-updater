@@ -379,11 +379,13 @@ internal sealed class MainForm : Form
 
     private void OnSideImageMenu(object? sender, EventArgs e)
     {
-        using var form = new SideImageForm(_settings);
+        var sideAreaHeight = Math.Max(1, _sideImageBox.ClientSize.Height);
+        using var form = new SideImageForm(_settings, sideAreaHeight);
         form.Saved += (_, args) =>
         {
             _settings.SideImageFileName = args.FileName;
             _settings.SideImageWidth = args.Width;
+            _settings.SideImageBasedOnPicture = args.BasedOnPicture;
 
             ApplySideImageWidth(args.Width);
             ApplySideImageFromSettings();
@@ -830,6 +832,9 @@ internal sealed record AppSettings
 
     [JsonPropertyName("sideImageWidth")]
     public int? SideImageWidth { get; set; }
+
+    [JsonPropertyName("sideImageBasedOnPicture")]
+    public bool SideImageBasedOnPicture { get; set; }
 
     [JsonPropertyName("lastPushStatus")]
     public PushStatus LastPushStatus { get; set; }
