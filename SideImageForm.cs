@@ -256,7 +256,8 @@ internal sealed class SideImageForm : Form
             }
             else
             {
-                _imageSelect.SelectedIndex = files.Count > 0 ? 1 : 0;
+                // If no saved image (or saved image no longer exists), default to (none).
+                _imageSelect.SelectedIndex = 0;
             }
 
             var width = ClampSideImageWidth(_settings.SideImageWidth ?? DefaultSideImageWidth);
