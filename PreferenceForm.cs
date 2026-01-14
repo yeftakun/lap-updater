@@ -58,26 +58,26 @@ internal sealed class PreferenceForm : Form
 
         // Driver profile
         AddHeader(layout, "Driver Profile");
-        _driverName = AddRow(layout, "Name", singleLine: true);
-        _driverGear = AddRow(layout, "Gear", singleLine: true);
-        _featuredLinkLabel = AddRow(layout, "Featured link label", singleLine: true);
-        _featuredLinkUrl = AddRow(layout, "Featured link url", singleLine: true);
+        _driverName = AddRow(layout, "Name", singleLine: true, placeholder: "Your driver alias");
+        _driverGear = AddRow(layout, "Gear", singleLine: true, placeholder: "Your driving setup (wheel, gamepad, keyboard, etc.)");
+        _featuredLinkLabel = AddRow(layout, "Featured link label", singleLine: true, placeholder: "Label for your featured profile link (e.g., Steam)");
+        _featuredLinkUrl = AddRow(layout, "Featured link url", singleLine: true, placeholder: string.Empty);
 
         // Featured lap
         AddHeader(layout, "Featured Lap");
         _featuredLapShow = new CheckBox { Text = "Show", AutoSize = true };
         AddControlRow(layout, "Show", _featuredLapShow);
-        _featuredLapTrack = AddRow(layout, "Track", singleLine: true);
-        _featuredLapCar = AddRow(layout, "Car", singleLine: true);
-        _featuredLapNote = AddRow(layout, "Note", singleLine: false, height: 80);
+        _featuredLapTrack = AddRow(layout, "Track", singleLine: true, placeholder: "Must match the track name in personalbest.ini");
+        _featuredLapCar = AddRow(layout, "Car", singleLine: true, placeholder: "Must match the car name in personalbest.ini");
+        _featuredLapNote = AddRow(layout, "Note", singleLine: false, height: 80, placeholder: "Any short note about this featured lap");
 
         // Meta
         AddHeader(layout, "Meta");
-        _metaTitle = AddRow(layout, "Title", singleLine: true);
-        _metaDescription = AddRow(layout, "Description", singleLine: false, height: 60);
-        _metaSiteUrl = AddRow(layout, "Site URL", singleLine: true);
-        _metaBase = AddRow(layout, "Base", singleLine: true);
-        _metaImage = AddRow(layout, "Image", singleLine: true);
+        _metaTitle = AddRow(layout, "Title", singleLine: true, placeholder: "Optional: use a different site header/title");
+        _metaDescription = AddRow(layout, "Description", singleLine: false, height: 60, placeholder: string.Empty);
+        _metaSiteUrl = AddRow(layout, "Site URL", singleLine: true, placeholder: "Your archive site URL (e.g., https://<username>.github.io/)");
+        _metaBase = AddRow(layout, "Base", singleLine: true, placeholder: "Base path (e.g., /<repo-name>/); use / if you have a custom domain");
+        _metaImage = AddRow(layout, "Image", singleLine: true, placeholder: "Not used; keep the default value");
 
         // Buttons
         var buttonPanel = new FlowLayoutPanel
@@ -144,7 +144,7 @@ internal sealed class PreferenceForm : Form
         layout.RowCount++;
     }
 
-    private static TextBox AddRow(TableLayoutPanel layout, string label, bool singleLine, int height = 0)
+    private static TextBox AddRow(TableLayoutPanel layout, string label, bool singleLine, int height = 0, string? placeholder = null)
     {
         var tb = new TextBox
         {
@@ -152,6 +152,11 @@ internal sealed class PreferenceForm : Form
             Multiline = !singleLine,
             ScrollBars = singleLine ? ScrollBars.None : ScrollBars.Vertical
         };
+
+        if (placeholder != null)
+        {
+            tb.PlaceholderText = placeholder;
+        }
 
         if (!singleLine && height > 0)
         {
