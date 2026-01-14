@@ -50,6 +50,8 @@ internal sealed class MainForm : Form
     public MainForm()
     {
         Text = "Lap Time Updater";
+        AutoScaleMode = AutoScaleMode.Dpi;
+        Font = new Font("Segoe UI", 10F);
         Width = 1020;
         Height = 520;
         StartPosition = FormStartPosition.CenterScreen;
@@ -147,7 +149,7 @@ internal sealed class MainForm : Form
             Dock = DockStyle.Fill,
             ReadOnly = true,
             DetectUrls = false,
-            Font = new System.Drawing.Font("Consolas", 10)
+            Font = CreateConsoleFont(10F)
         };
 
         _statusLabel = new Label
@@ -210,6 +212,25 @@ internal sealed class MainForm : Form
         ApplyStoredStatus();
 
         EnsureWindowFitsContent(initialWidth, mainLayout);
+    }
+
+    private static Font CreateConsoleFont(float size)
+    {
+        // Prefer modern monospace if available; fall back to Consolas.
+        try
+        {
+            using var probe = new Font("Cascadia Mono", size);
+            if (string.Equals(probe.Name, "Cascadia Mono", StringComparison.OrdinalIgnoreCase))
+            {
+                return new Font("Cascadia Mono", size);
+            }
+        }
+        catch
+        {
+            // ignore
+        }
+
+        return new Font("Consolas", size);
     }
 
     private static int ClampSideImageWidth(int value)

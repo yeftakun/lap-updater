@@ -28,7 +28,10 @@ internal sealed class SideImageForm : Form
         _sideImageAreaHeight = Math.Max(1, sideImageAreaHeight);
 
         Text = "Side Image";
+        AutoScaleMode = AutoScaleMode.Dpi;
+        Font = new Font("Segoe UI", 10F);
         StartPosition = FormStartPosition.CenterParent;
+        ShowInTaskbar = false;
         MinimizeBox = false;
         MaximizeBox = false;
         FormBorderStyle = FormBorderStyle.FixedDialog;
@@ -61,6 +64,7 @@ internal sealed class SideImageForm : Form
             AutoSize = true
         };
         _saveButton.Click += OnSave;
+        AcceptButton = _saveButton;
 
         var closeButton = new Button
         {
@@ -68,6 +72,7 @@ internal sealed class SideImageForm : Form
             AutoSize = true
         };
         closeButton.Click += (_, _) => Close();
+        CancelButton = closeButton;
 
         var layout = new TableLayoutPanel
         {

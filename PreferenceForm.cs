@@ -45,9 +45,13 @@ internal sealed class PreferenceForm : Form
         _repoRootPath = repoRootPath;
 
         Text = "Preference";
+        AutoScaleMode = AutoScaleMode.Dpi;
+        Font = new Font("Segoe UI", 10F);
         StartPosition = FormStartPosition.CenterParent;
+        ShowInTaskbar = false;
         MinimizeBox = false;
         MaximizeBox = false;
+        FormBorderStyle = FormBorderStyle.FixedDialog;
 
         AutoSize = true;
         AutoSizeMode = AutoSizeMode.GrowAndShrink;
@@ -130,9 +134,12 @@ internal sealed class PreferenceForm : Form
 
         var cancelButton = new Button { Text = "Close", AutoSize = true };
         cancelButton.Click += (_, _) => Close();
+        CancelButton = cancelButton;
 
         buttonPanel.Controls.Add(_saveButton);
         buttonPanel.Controls.Add(cancelButton);
+
+        AcceptButton = _saveButton;
 
         layout.Controls.Add(buttonPanel, 0, layout.RowCount);
         layout.SetColumnSpan(buttonPanel, 2);
@@ -170,7 +177,7 @@ internal sealed class PreferenceForm : Form
         {
             Text = title,
             AutoSize = true,
-            Font = new Font(SystemFonts.DefaultFont, FontStyle.Bold),
+            Font = new Font(layout.Font, FontStyle.Bold),
             Padding = new Padding(0, 12, 0, 6),
             Dock = DockStyle.Fill
         };

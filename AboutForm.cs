@@ -8,7 +8,10 @@ internal sealed class AboutForm : Form
     public AboutForm()
     {
         Text = "About";
+        AutoScaleMode = AutoScaleMode.Dpi;
+        Font = new Font("Segoe UI", 10F);
         StartPosition = FormStartPosition.CenterParent;
+        ShowInTaskbar = false;
         MinimizeBox = false;
         MaximizeBox = false;
         FormBorderStyle = FormBorderStyle.FixedDialog;
@@ -27,6 +30,7 @@ internal sealed class AboutForm : Form
             AutoSize = true
         };
         closeButton.Click += (_, _) => Close();
+        CancelButton = closeButton;
 
         var buttonPanel = new FlowLayoutPanel
         {
