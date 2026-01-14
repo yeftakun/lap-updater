@@ -24,6 +24,8 @@ internal sealed class MainForm : Form
     private readonly TextBox _sourcePathBox;
     private readonly TextBox _repoRootBox;
     private readonly ComboBox _sideImageSelect;
+    private readonly NumericUpDown _sideImageWidthUpDown;
+    private readonly Button _saveSideImageWidthButton;
     private readonly Button _checkChangesButton;
     private readonly Button _updateButton;
     private readonly Button _preferencesButton;
@@ -32,6 +34,8 @@ internal sealed class MainForm : Form
     private readonly Label _statusLabel;
 
     private readonly PictureBox _sideImageBox;
+    private readonly TableLayoutPanel _shell;
+    private readonly ColumnStyle _sideImageColumnStyle;
 
     private readonly ToolStripMenuItem _openConfigMenuItem;
     private readonly ToolStripMenuItem _aboutMenuItem;
@@ -39,6 +43,10 @@ internal sealed class MainForm : Form
     private AppSettings _settings;
     private bool _isBusy;
     private bool _isSideImageInitializing;
+
+    private const int SideImageWidthMin = 120;
+    private const int SideImageWidthMax = 520;
+    private const int DefaultSideImageWidth = 300;
 
     public MainForm()
     {
@@ -92,6 +100,21 @@ internal sealed class MainForm : Form
             Width = 520
         };
         _sideImageSelect.SelectedIndexChanged += OnSideImageChanged;
+
+        _sideImageWidthUpDown = new NumericUpDown
+        {
+            Minimum = SideImageWidthMin,
+            Maximum = SideImageWidthMax,
+            Increment = 10,
+            Width = 90
+        };
+
+        _saveSideImageWidthButton = new Button
+        {
+            Text = "Save",
+            AutoSize = true
+        };
+        _saveSideImageWidthButton.Click += OnSaveSideImageWidth;
 
         var browseFileButton = new Button
         {
@@ -178,30 +201,56 @@ internal sealed class MainForm : Form
         mainLayout.Controls.Add(instructions, 0, 0);
         mainLayout.Controls.Add(CreatePathRow("Source personalbest.ini", _sourcePathBox, browseFileButton), 0, 1);
         mainLayout.Controls.Add(CreatePathRow("Website repo root", _repoRootBox, browseFolderButton), 0, 2);
-        mainLayout.Controls.Add(CreateLabeledRow("Side Image", _sideImageSelect), 0, 3);
+        mainLayout.Controls.Add(CreateLabeledRow("Side Image", CreateSideImageControls()), 0, 3);
         mainLayout.Controls.Add(CreateActionsRow(), 0, 4);
         mainLayout.Controls.Add(CreateOutputRow(), 0, 5);
 
-        var shell = new TableLayoutPanel
+        _shell = new TableLayoutPanel
         {
             Dock = DockStyle.Fill,
             ColumnCount = 2,
             RowCount = 1
         };
-        shell.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 300));
-        shell.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-        shell.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
 
-        shell.Controls.Add(_sideImageBox, 0, 0);
-        shell.Controls.Add(mainLayout, 1, 0);
+        var initialWidth = ClampSideImageWidth(_settings.SideImageWidth ?? DefaultSideImageWidth);
+        _sideImageWidthUpDown.Value = initialWidth;
 
-        Controls.Add(shell);
+        _sideImageColumnStyle = new ColumnStyle(SizeType.Absolute, initialWidth);
+        _shell.ColumnStyles.Add(_sideImageColumnStyle);
+        _shell.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        _shell.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+
+        _shell.Controls.Add(_sideImageBox, 0, 0);
+        _shell.Controls.Add(mainLayout, 1, 0);
+
+        Controls.Add(_shell);
         Controls.Add(menuStrip);
 
         LoadSettingsIntoUi();
         LoadSideImageOptions();
         UpdateButtonStates();
         ApplyStoredStatus();
+    }
+
+    private Control CreateSideImageControls()
+    {
+        var row = new FlowLayoutPanel
+        {
+            AutoSize = true,
+            WrapContents = false,
+            FlowDirection = FlowDirection.LeftToRight
+        };
+
+        row.Controls.Add(_sideImageSelect);
+        row.Controls.Add(new Label { Text = "Width", AutoSize = true, Padding = new Padding(10, 6, 6, 0) });
+        row.Controls.Add(_sideImageWidthUpDown);
+        row.Controls.Add(_saveSideImageWidthButton);
+        return row;
+    }
+
+    private static int ClampSideImageWidth(int value)
+    {
+        return Math.Clamp(value, SideImageWidthMin, SideImageWidthMax);
     }
 
     private Control CreatePathRow(string label, Control textBox, Control button)
@@ -344,6 +393,31 @@ internal sealed class MainForm : Form
         var selected = _sideImageSelect.SelectedItem?.ToString();
         _settings.SideImageFileName = string.Equals(selected, "(none)", StringComparison.OrdinalIgnoreCase) ? null : selected;
         SettingsStore.Save(_settings);
+    }
+
+    private void OnSaveSideImageWidth(object? sender, EventArgs e)
+    {
+        var width = ClampSideImageWidth((int)_sideImageWidthUpDown.Value);
+        _settings.SideImageWidth = width;
+        SettingsStore.Save(_settings);
+        ApplySideImageWidth(width);
+        SetStatus("Side image width saved!", Color.Green);
+    }
+
+    private void ApplySideImageWidth(int width)
+    {
+        width = ClampSideImageWidth(width);
+
+        _shell.SuspendLayout();
+        try
+        {
+            _sideImageColumnStyle.SizeType = SizeType.Absolute;
+            _sideImageColumnStyle.Width = width;
+        }
+        finally
+        {
+            _shell.ResumeLayout(true);
+        }
     }
 
     private void ApplySelectedSideImageToUi()
@@ -806,6 +880,9 @@ internal sealed record AppSettings
 
     [JsonPropertyName("sideImageFileName")]
     public string? SideImageFileName { get; set; }
+
+    [JsonPropertyName("sideImageWidth")]
+    public int? SideImageWidth { get; set; }
 
     [JsonPropertyName("lastPushStatus")]
     public PushStatus LastPushStatus { get; set; }
