@@ -23,6 +23,7 @@ internal sealed class MainForm : Form
 
     private readonly TextBox _sourcePathBox;
     private readonly TextBox _repoRootBox;
+    private readonly ComboBox _sideImageSelect;
     private readonly Button _checkChangesButton;
     private readonly Button _updateButton;
     private readonly Button _preferencesButton;
@@ -30,16 +31,19 @@ internal sealed class MainForm : Form
     private readonly RichTextBox _outputBox;
     private readonly Label _statusLabel;
 
+    private readonly PictureBox _sideImageBox;
+
     private readonly ToolStripMenuItem _openConfigMenuItem;
     private readonly ToolStripMenuItem _aboutMenuItem;
 
     private AppSettings _settings;
     private bool _isBusy;
+    private bool _isSideImageInitializing;
 
     public MainForm()
     {
         Text = "Lap Time Updater";
-        Width = 820;
+        Width = 1020;
         Height = 520;
         StartPosition = FormStartPosition.CenterScreen;
         _settings = SettingsStore.Load();
@@ -81,6 +85,13 @@ internal sealed class MainForm : Form
             ReadOnly = true,
             Width = 520
         };
+
+        _sideImageSelect = new ComboBox
+        {
+            DropDownStyle = ComboBoxStyle.DropDownList,
+            Width = 520
+        };
+        _sideImageSelect.SelectedIndexChanged += OnSideImageChanged;
 
         var browseFileButton = new Button
         {
@@ -143,13 +154,21 @@ internal sealed class MainForm : Form
             Padding = new Padding(8, 6, 0, 0)
         };
 
+        _sideImageBox = new PictureBox
+        {
+            Dock = DockStyle.Fill,
+            SizeMode = PictureBoxSizeMode.Zoom,
+            BackColor = SystemColors.ControlLight
+        };
+
         var mainLayout = new TableLayoutPanel
         {
             Dock = DockStyle.Fill,
-            RowCount = 5,
+            RowCount = 6,
             ColumnCount = 1,
             Padding = new Padding(12)
         };
+        mainLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         mainLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         mainLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         mainLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
@@ -159,13 +178,28 @@ internal sealed class MainForm : Form
         mainLayout.Controls.Add(instructions, 0, 0);
         mainLayout.Controls.Add(CreatePathRow("Source personalbest.ini", _sourcePathBox, browseFileButton), 0, 1);
         mainLayout.Controls.Add(CreatePathRow("Website repo root", _repoRootBox, browseFolderButton), 0, 2);
-        mainLayout.Controls.Add(CreateActionsRow(), 0, 3);
-        mainLayout.Controls.Add(CreateOutputRow(), 0, 4);
+        mainLayout.Controls.Add(CreateLabeledRow("Side Image", _sideImageSelect), 0, 3);
+        mainLayout.Controls.Add(CreateActionsRow(), 0, 4);
+        mainLayout.Controls.Add(CreateOutputRow(), 0, 5);
 
-        Controls.Add(mainLayout);
+        var shell = new TableLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            ColumnCount = 2,
+            RowCount = 1
+        };
+        shell.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 300));
+        shell.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        shell.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+
+        shell.Controls.Add(_sideImageBox, 0, 0);
+        shell.Controls.Add(mainLayout, 1, 0);
+
+        Controls.Add(shell);
         Controls.Add(menuStrip);
 
         LoadSettingsIntoUi();
+        LoadSideImageOptions();
         UpdateButtonStates();
         ApplyStoredStatus();
     }
@@ -183,6 +217,21 @@ internal sealed class MainForm : Form
         row.Controls.Add(new Label { Text = label, AutoSize = true, Width = 150 });
         row.Controls.Add(textBox);
         row.Controls.Add(button);
+        return row;
+    }
+
+    private Control CreateLabeledRow(string label, Control control)
+    {
+        var row = new FlowLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            AutoSize = true,
+            FlowDirection = FlowDirection.LeftToRight,
+            WrapContents = false
+        };
+
+        row.Controls.Add(new Label { Text = label, AutoSize = true, Width = 150 });
+        row.Controls.Add(control);
         return row;
     }
 
@@ -226,6 +275,110 @@ internal sealed class MainForm : Form
         if (!string.IsNullOrWhiteSpace(_settings.RepoRootPath))
         {
             _repoRootBox.Text = _settings.RepoRootPath;
+        }
+    }
+
+    private static string GetSideImageDirectory()
+    {
+        return Path.Combine(AppContext.BaseDirectory, "img");
+    }
+
+    private void LoadSideImageOptions()
+    {
+        _isSideImageInitializing = true;
+        try
+        {
+            _sideImageSelect.Items.Clear();
+
+            var imgDir = GetSideImageDirectory();
+            if (!Directory.Exists(imgDir))
+            {
+                _sideImageSelect.Enabled = false;
+                SetSideImage(null);
+                return;
+            }
+
+            var files = Directory
+                .EnumerateFiles(imgDir, "*.bmp", SearchOption.TopDirectoryOnly)
+                .Select(Path.GetFileName)
+                .OfType<string>()
+                .Where(f => !string.IsNullOrWhiteSpace(f))
+                .OrderBy(f => f, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            _sideImageSelect.Items.Add("(none)");
+            foreach (var f in files)
+            {
+                _sideImageSelect.Items.Add(f);
+            }
+
+            _sideImageSelect.Enabled = files.Count > 0;
+
+            var saved = _settings.SideImageFileName;
+            if (!string.IsNullOrWhiteSpace(saved) && files.Contains(saved, StringComparer.OrdinalIgnoreCase))
+            {
+                _sideImageSelect.SelectedItem = files.First(f => string.Equals(f, saved, StringComparison.OrdinalIgnoreCase));
+            }
+            else
+            {
+                _sideImageSelect.SelectedIndex = files.Count > 0 ? 1 : 0; // first image or (none)
+            }
+
+            ApplySelectedSideImageToUi();
+        }
+        finally
+        {
+            _isSideImageInitializing = false;
+        }
+    }
+
+    private void OnSideImageChanged(object? sender, EventArgs e)
+    {
+        if (_isSideImageInitializing)
+        {
+            return;
+        }
+
+        ApplySelectedSideImageToUi();
+
+        var selected = _sideImageSelect.SelectedItem?.ToString();
+        _settings.SideImageFileName = string.Equals(selected, "(none)", StringComparison.OrdinalIgnoreCase) ? null : selected;
+        SettingsStore.Save(_settings);
+    }
+
+    private void ApplySelectedSideImageToUi()
+    {
+        var selected = _sideImageSelect.SelectedItem?.ToString();
+        if (string.IsNullOrWhiteSpace(selected) || string.Equals(selected, "(none)", StringComparison.OrdinalIgnoreCase))
+        {
+            SetSideImage(null);
+            return;
+        }
+
+        var path = Path.Combine(GetSideImageDirectory(), selected);
+        SetSideImage(path);
+    }
+
+    private void SetSideImage(string? imagePath)
+    {
+        try
+        {
+            var old = _sideImageBox.Image;
+
+            if (string.IsNullOrWhiteSpace(imagePath) || !File.Exists(imagePath))
+            {
+                _sideImageBox.Image = null;
+                old?.Dispose();
+                return;
+            }
+
+            using var temp = new Bitmap(imagePath);
+            _sideImageBox.Image = new Bitmap(temp);
+            old?.Dispose();
+        }
+        catch
+        {
+            // Ignore image errors; keep UI responsive.
         }
     }
 
@@ -650,6 +803,9 @@ internal sealed record AppSettings
 
     [JsonPropertyName("repoRootPath")]
     public string? RepoRootPath { get; set; }
+
+    [JsonPropertyName("sideImageFileName")]
+    public string? SideImageFileName { get; set; }
 
     [JsonPropertyName("lastPushStatus")]
     public PushStatus LastPushStatus { get; set; }
