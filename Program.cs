@@ -549,6 +549,11 @@ internal sealed class MainForm : Form
 
         SetBusy(true);
         _updateButton.Enabled = false;
+
+        AppendOutput("Running Git Pull...");
+        var pullResult = await RunCommandAsync("git", "pull");
+        AppendCommandResult(pullResult);
+
         AppendOutput("Running git fetch (compare with remote)...");
         var fetchResult = await RunCommandAsync("git", "fetch --quiet");
         AppendCommandResult(fetchResult);
@@ -598,6 +603,10 @@ internal sealed class MainForm : Form
 
         SetBusy(true);
         _updateButton.Enabled = false;
+
+        AppendOutput("Running Git Pull...");
+        var pullResult = await RunCommandAsync("git", "pull");
+        AppendCommandResult(pullResult);
 
         AppendOutput("Running git add .");
         var addResult = await RunCommandAsync("git", "add .");
